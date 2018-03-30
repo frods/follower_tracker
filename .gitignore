@@ -1,0 +1,6 @@
+venv
+
+google_auth.json
+inputs
+followers.txt
+log.txt*
