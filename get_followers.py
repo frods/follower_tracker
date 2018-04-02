@@ -9,7 +9,7 @@ import logging_config
 from store import google_sheet, file as file_store
 from process import urls
 
-logging_config.configure_logging()
+logging_config.configure_logging(logging.INFO)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -29,6 +29,9 @@ parser.add_option(
     "-s", "--store_page",
     help="Store the page found from the url",
     action="store_true")
+parser.add_option(
+    "--linkedin_cookie",
+    help="Cookie for linkedin access")
 
 parser.add_option(
     "-f", "--file",
@@ -68,7 +71,7 @@ if len(sys.argv) >= 2:
 
 options, _ = parser.parse_args(args)
 
-LOGGER.info("===================================")
+LOGGER.info("================================================================")
 LOGGER.info("Getting followers with options:\n%s", options)
 
 if not options.url:
@@ -91,7 +94,8 @@ if options.file:
         options.email_account, options.email_password))
 
 processor = urls.ProcessUrls(
-    options.url, stores, options.store_page, options.platforms)
+    options.url, stores, options.store_page, options.platforms,
+    options.linkedin_cookie)
 processor.process()
 
 for store in stores:

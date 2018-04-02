@@ -34,7 +34,7 @@ class StoreGoogleSheet:
         self.google_sheet = google_sheet
         self.worksheet_name = worksheet_name
 
-    def store_followers(self, platform, count, date, url):
+    def store_followers(self, date, followers):
         if not gspread:
             LOGGER.info("gspread not available")
             return
@@ -51,7 +51,7 @@ class StoreGoogleSheet:
             LOGGER.info("no worksheet_name specified")
             return
 
-        LOGGER.info("adding %s, %s, %s", platform, date, count)
+        LOGGER.info("adding %s", followers)
         scope = ['https://spreadsheets.google.com/feeds']
 
         try:
@@ -78,6 +78,7 @@ class StoreGoogleSheet:
 
         wks = sheet.worksheet(self.worksheet_name)
 
+        platform = followers.platform
         platforms = strip_back(wks.col_values(1))
         if platform in platforms:
             platform_row = platforms.index(platform) + 1
@@ -96,9 +97,9 @@ class StoreGoogleSheet:
                 date_col += 1
             if date_col >= wks.col_count:
                 wks.add_cols(date_col - wks.col_count)
-            wks.update_cell(1, date_col, date)
+            wks.update_cell(1, date_col, followers.date)
 
-        wks.update_cell(platform_row, date_col, count)
+        wks.update_cell(platform_row, date_col, followers.count)
 
     def finalize(self):
         pass
