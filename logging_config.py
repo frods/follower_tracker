@@ -13,6 +13,6 @@ def configure_logging(level=logging.DEBUG, path="log.txt"):
     handler = RotatingFileHandler(path, maxBytes=20000, backupCount=5)
     handler.setLevel(level)
     handler.setFormatter(logging.Formatter(
-        '%(asctime)s %(name)s %(levelname)-8s %(message)s',
+        '%(asctime)s %(name)s:%(lineno)d %(levelname)-8s %(message)s',
         '%a, %d %b %Y %H:%M:%S'))
     root_logger.addHandler(handler)
