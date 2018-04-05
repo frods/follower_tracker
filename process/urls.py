@@ -1,109 +1,75 @@
-import urllib.request
-import re
 import time
 import logging
 
+from .pinterest import ProcessPinterest
+from .twitter import ProcessTwitter
+from .youtube import ProcessYoutube
+from .google_plus import ProcessGooglePlus
+from .instagram import ProcessInstagram
+from .linkedin import ProcessLinkedInGenerator
+
 LOGGER = logging.getLogger(__name__)
 
-PLATFORM_RES = {
-    "pinterest": [
-        r"pinterest\.com/(?P<account>[^/]*)",
-        [r'name="pinterestapp:followers" content="(?P<followers>\d+)"']],
-    "twitter": [
-        r"twitter\.com/(?P<account>[^/]*)",
-        [r'followers">.*<div class="statnum">(?P<followers>.*?)</div>.*?'
-            '<div class="statlabel"> Followers </div>',
-         r'title="(?P<followers>[\d,]+) Followers" data-nav="followers"']],
-    "facebook": [
-        r"facebook\.com/(?P<account>[^/]*)",
-        [r'<meta name="description" content=".*?(?P<followers>[\d,]+) likes',
-         r'<span id="PagesLikesCountDOMID">.*?>(?P<followers>[\d,]+) <',
-         r'content=".* (?P<followers>[\d,]+) likes']],
-    "youtube": [
-        r"youtube\.com/user/(?P<account>[^/]*)",
-        [r'aria-label="(?P<followers>[\d,]+) subscribers']],
-    "google plus": [
-        r"plus\.google\.com.*?/(?P<account>[^/]*)",
-        [r'<div class="WH0GUe"><span>(?P<followers>[\d,]+)</span> followers',
-         r'">(?P<followers>[\d,]+)</span> followers',
-         r'<br>(?P<followers>[\d,]+) followers</div>']],
-    "instagram": [
-        r"instagram\.com/(?P<account>[^/]*)",
-        [r'\"followed_by\":(?P<followers>[\d]+)',
-         r'\"followed_by\":\s*{\"count\":\s*(?P<followers>[\d]+)}']]}
+BASIC_PROCESSORS = [
+    ProcessPinterest,
+    ProcessTwitter,
+    ProcessYoutube,
+    ProcessGooglePlus,
+    ProcessInstagram,
+]
 
 
 class ProcessUrls:
-    def __init__(self, urls, stores, store_page, platforms):
+    def __init__(
+        self, urls, stores, store_page, named_platforms, linkedin_cookie
+    ):
         self.urls = urls
         self.stores = stores
         self.store_page = store_page
-        self.platforms = platforms
-
+        self.named_platforms = named_platforms
+        self.processors = BASIC_PROCESSORS[:]
+        if linkedin_cookie is not None:
+            self.processors.append(ProcessLinkedInGenerator(linkedin_cookie))
         self.processed_platforms = []
+
+    def _plaform_getter(self, raw_platform, account):
+        LOGGER.debug("Current platforms %s", self.processed_platforms)
+        platform = raw_platform
+        if self.named_platforms or platform in self.processed_platforms:
+            platform = "%s_%s" % (raw_platform, account)
+            if not self.named_platforms:
+                LOGGER.info("Platform clash, using %s", platform)
+
+        orig_platform = platform
+        count = 2
+        while platform in self.processed_platforms:
+            platform = orig_platform + str(count)
+            count += 1
+            LOGGER.info("Platform clash, using %s", platform)
+
+        self.processed_platforms.append(platform)
+        return platform
 
     def _process_url(self, url):
         LOGGER.info("Processing url: %s", url)
-        followers_platform = None
-        followers_res = []
-        for platform, values in PLATFORM_RES.items():
-            match = re.search(values[0], url)
-            if match:
-                followers_platform = platform
-                account = match.group("account")
-                LOGGER.info("URL has account: %s", account)
-                followers_res = values[1]
 
-        if not followers_res:
+        processor = None
+        for p in self.processors:
+            if p.can_process(url):
+                processor = p(url, self.store_page)
+
+        if not processor:
             LOGGER.error(
                 "Error could not identify the platform of the url: \"%s\"",
                 url)
             return
 
-        try:
-            resultHandle = urllib.request.urlopen(url)
-        except IOError as e:
-            LOGGER.exception("Error accessing url: %s", url)
-            return
+        print(type(processor))
+        followers = processor.get_followers(self._plaform_getter)
 
-        if not resultHandle:
-            LOGGER.error("Couldn't get any results for url: %s", url)
-
-        followers = None
-        page = resultHandle.read().decode('utf-8')
-
-        if self.store_page:
-            with open("found_page.txt", "w") as writer:
-                writer.write(page)
-
-        for follower_re in followers_res:
-            match = re.search(follower_re, page, re.DOTALL)
-            if match:
-                followers = match.group("followers")
-                break
-
-        if followers:
-            LOGGER.info("Followers: %s", followers)
-            LOGGER.debug("Current platforms %s", self.processed_platforms)
-            platform = followers_platform
-            if self.platforms or platform in self.processed_platforms:
-                platform = "%s_%s" % (followers_platform, account)
-                if not self.platforms:
-                    LOGGER.info("Platform clash, using %s", platform)
-
-            orig_platform = platform
-            count = 2
-            while platform in self.processed_platforms:
-                platform = orig_platform + str(count)
-                count += 1
-                LOGGER.info("Platform clash, using %s", platform)
-
-            self.processed_platforms.append(platform)
-
+        if followers is not None:
             for store in self.stores:
-                store.store_followers(platform, followers, self.scan_time, url)
-        else:
-            LOGGER.info("Didn't find any follower data.")
+                store.store_followers(self.scan_time, followers)
 
     def process(self):
         self.scan_time = time.strftime("%a %b %d %H:%M %Y")

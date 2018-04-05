@@ -14,14 +14,14 @@ class StoreFile:
         self.email_account = email_account
         self.email_password = email_password
 
-    def store_followers(self, platform, count, date, url):
+    def store_followers(self, date, followers):
         def clean_count(count):
             clean_count = count.replace(',', '')
             return clean_count
 
         with open(self.filename, "a") as writter:
             writter.write("%s\t%s\t%s\n" % (
-                time.asctime(), clean_count(count), url))
+                time.asctime(), clean_count(followers.count), followers.url))
 
     def finalize(self):
         if not self.email:
