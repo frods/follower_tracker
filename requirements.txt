@@ -18,7 +18,7 @@ pyflakes==1.6.0
 pyppeteer==0.0.16
 pytest==3.5.0
 requests==2.18.4
-rsa==3.4.2
+rsa==4.7
 six==1.11.0
 TBB==0.1
 urllib3==1.22
